@@ -7,11 +7,16 @@
 -- -----------------------------------------------------
 -- DROP TABLES
 -- -----------------------------------------------------
-DROP TABLE IF EXISTS public.ESTADO;
-DROP TABLE IF EXISTS public.MUNICIPIO;
-DROP TABLE IF EXISTS public.RESPONSAVEL;
-DROP TABLE IF EXISTS public.CIDADAO;
-DROP TABLE IF EXISTS public.BENEFICIO;
+DROP TABLE IF EXISTS public.ESTADO CASCADE;
+DROP TABLE IF EXISTS public.MUNICIPIO CASCADE;
+DROP TABLE IF EXISTS public.RESPONSAVEL CASCADE;
+DROP TABLE IF EXISTS public.CIDADAO CASCADE;
+DROP TABLE IF EXISTS public.BENEFICIO CASCADE;
+
+-- -----------------------------------------------------
+-- DROP TYPES
+-- -----------------------------------------------------
+DROP TYPE enquadramento CASCADE;
 
 -- -----------------------------------------------------
 -- Table public.ESTADO
@@ -19,7 +24,8 @@ DROP TABLE IF EXISTS public.BENEFICIO;
 CREATE TABLE IF NOT EXISTS public.ESTADO (
   ID_ESTADO SERIAL PRIMARY KEY,
   UF CHAR(2) NOT NULL UNIQUE,
-  ESTADO_NOME VARCHAR(100) NOT NULL UNIQUE
+  ESTADO_NOME VARCHAR(100) NOT NULL UNIQUE,
+  REGIAO VARCHAR(45) NOT NULL
 );
 
 -- -----------------------------------------------------

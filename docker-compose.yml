@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:  
+  db_auxilio_emergencial:
+    container_name: db_auxilio_emergencial
+    image: postgres:12
+    restart: always
+    environment:
+      - POSTGRES_DB=auxilio_emergencial
+      - POSTGRES_PASSWORD=auxilio_emergencial
+      - POSTGRES_USER=auxilio_emergencial
+    ports:
+      - 15432:5432
+    volumes:
+      - vdb_auxilio_emergencial:/var/lib/postgresql/data/
+    networks:
+      - auxilio-emergencial-network
+
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=auxilio_emergencial@email.com
+      - PGADMIN_DEFAULT_PASSWORD=auxilio_emergencial
+    ports:
+      - 8032:80
+    depends_on:
+      - db_auxilio_emergencial
+    networks:
+      - auxilio-emergencial-network
+
+networks:
+  auxilio-emergencial-network:
+    name: auxilio-emergencial-network
+    driver: bridge
+
+volumes:
+    vdb_auxilio_emergencial:

@@ -2,9 +2,8 @@ from decimal import Decimal
 
 import numpy
 import pandas
-from loguru import logger
-
 import psycopg2
+from loguru import logger
 from psycopg2 import OperationalError
 from psycopg2.extras import DictCursor
 from psycopg2.extensions import parse_dsn
@@ -14,7 +13,7 @@ from projeto_final_fbd.config import envs
 
 def clean_data(linha: dict) -> dict:
     nis_beneficiario, nis_responsavel, nome_responsavel, obs = None, None, None, None
-    enquadramento = ""
+    enquadramento, valor_beneficio = "", ""
 
     if linha.get("NIS BENEFICI�RIO", None):
         if linha.get("NIS BENEFICI�RIO", None) != "0":
@@ -34,6 +33,11 @@ def clean_data(linha: dict) -> dict:
         enquadramento = "BOLSA_FAMILIA"
     else:
         enquadramento = linha.get("ENQUADRAMENTO")
+    if linha.get("VALOR BENEF�CIO"):
+        if "," in linha.get("VALOR BENEF�CIO"):
+            valor_beneficio = linha.get("VALOR BENEF�CIO").strip().replace(",", ".")
+        else:
+            valor_beneficio = linha.get("VALOR BENEF�CIO")
 
     return {
         "CODIGO MUNICIPIO": linha.get("C�DIGO MUNIC�PIO IBGE").strip(),
@@ -44,9 +48,7 @@ def clean_data(linha: dict) -> dict:
         "ENQUADRAMENTO": enquadramento.strip(),
         "PARCELA": linha.get("PARCELA").strip()[0],
         "OBSERVACAO": obs,
-        "VALOR BENEFICIO": Decimal(
-            "{0:.2f}".format(Decimal(linha.get("VALOR BENEF�CIO", 0)))
-        ),
+        "VALOR BENEFICIO": Decimal("{0:.2f}".format(Decimal(valor_beneficio))),
         "MES DISPONIBILIZACAO": "202009",
     }
 
@@ -118,21 +120,6 @@ def disconnect_db(cursor, connection):
 
 
 def insert_etl(csv: str):
-    columns_names = [
-        "M�S DISPONIBILIZA��O",
-        "C�DIGO MUNIC�PIO IBGE",
-        "NOME MUNIC�PIO",
-        "NIS BENEFICI�RIO",
-        "CPF BENEFICI�RIO",
-        "NOME BENEFICI�RIO",
-        "NIS RESPONS�VEL",
-        "CPF RESPONS�VEL",
-        "NOME RESPONS�VEL",
-        "ENQUADRAMENTO",
-        "PARCELA",
-        "OBSERVA��O",
-        "VALOR BENEF�CIO",
-    ]
     linhas = pandas.read_csv(
         csv,
         encoding="utf_8",
@@ -153,11 +140,12 @@ def insert_etl(csv: str):
             "NIS BENEFICI�RIO": object,
             "OBSERVA��O": object,
             "PARCELA": object,
+            "VALOR BENEF�CIO": object
         },
-        # names=columns_names,
-        # header=0,
-        # engine="python",
-        sep=";"
+        engine="c",
+        sep=";",
+        low_memory=True,
+        nrows=5_000_000
     )
     linhas = linhas.replace({numpy.nan: None})
     for linha in linhas.to_dict(orient="records")[32:]:

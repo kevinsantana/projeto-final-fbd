@@ -32,7 +32,8 @@ services:
 networks:
   auxilio-emergencial-network:
     name: auxilio-emergencial-network
-    driver: bridge
+    driver: host
+    external: true
 
 volumes:
     vdb_auxilio_emergencial:

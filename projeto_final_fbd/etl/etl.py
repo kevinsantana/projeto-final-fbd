@@ -119,7 +119,7 @@ def disconnect_db(cursor, connection):
     connection.close()
 
 
-def insert_etl(csv: str):
+def make_df(csv: str):
     linhas = pandas.read_csv(
         csv,
         encoding="utf_8",
@@ -140,15 +140,20 @@ def insert_etl(csv: str):
             "NIS BENEFICI�RIO": object,
             "OBSERVA��O": object,
             "PARCELA": object,
-            "VALOR BENEF�CIO": object
+            "VALOR BENEF�CIO": object,
         },
         engine="c",
         sep=";",
         low_memory=True,
-        nrows=5_000_000
+        nrows=5_000_000,
     )
     linhas = linhas.replace({numpy.nan: None})
-    for linha in linhas.to_dict(orient="records")[32:]:
+    return linhas.to_dict(orient="records")[32:]
+
+
+def insert_etl(csv: str):
+    linhas = make_df(csv)
+    for linha in linhas:
         linha_ok = clean_data(linha)
         id_responsavel = None
         cur, conn = connect_db()
@@ -175,21 +180,24 @@ def insert_etl(csv: str):
                     "responsavel_id_responsavel": id_responsavel,
                 },
             )
+        dados_beneficio = {
+            "cidadao_id_cidadao": id_cidadao,
+            "municipio_id_municipio": id_municipio,
+            "mes_disponibilizacao": linha_ok.get("MES DISPONIBILIZACAO"),
+            "enquadramento": linha_ok.get("ENQUADRAMENTO"),
+            "parcela": linha_ok.get("PARCELA"),
+            "observacao": linha_ok.get("OBSERVACAO"),
+            "valor_beneficio": linha_ok.get("VALOR BENEFICIO"),
+        }
         beneficio_ok = insert_beneficio(
             cur,
             conn,
-            {
-                "cidadao_id_cidadao": id_cidadao,
-                "municipio_id_municipio": id_municipio,
-                "mes_disponibilizacao": linha_ok.get("MES DISPONIBILIZACAO"),
-                "enquadramento": linha_ok.get("ENQUADRAMENTO"),
-                "parcela": linha_ok.get("PARCELA"),
-                "observacao": linha_ok.get("OBSERVACAO"),
-                "valor_beneficio": linha_ok.get("VALOR BENEFICIO"),
-            },
+            dados_beneficio,
         )
         if beneficio_ok:
             logger.info("Inserção realizada com sucesso")
+        else:
+            logger.error(f"Falha na inserção do benefício: {dados_beneficio}")
 
     disconnect_db(cur, conn)
 

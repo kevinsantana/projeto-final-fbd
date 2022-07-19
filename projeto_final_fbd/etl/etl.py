@@ -2,8 +2,10 @@ from decimal import Decimal
 
 import numpy
 import pandas
-import psycopg2
 from loguru import logger
+from alive_progress import alive_bar
+
+import psycopg2
 from psycopg2 import OperationalError
 from psycopg2.extras import DictCursor
 from psycopg2.extensions import parse_dsn
@@ -119,7 +121,7 @@ def disconnect_db(cursor, connection):
     connection.close()
 
 
-def make_df(csv: str):
+def make_df(csv: str, n_rows: int = 0, skip_rows: int = 0):
     linhas = pandas.read_csv(
         csv,
         encoding="utf_8",
@@ -142,66 +144,70 @@ def make_df(csv: str):
             "PARCELA": object,
             "VALOR BENEF�CIO": object,
         },
+        skiprows=skip_rows,
         engine="c",
         sep=";",
         low_memory=True,
-        nrows=5_000_000,
+        nrows=n_rows,
     )
     linhas = linhas.replace({numpy.nan: None})
     return linhas.to_dict(orient="records")[32:]
 
 
 def insert_etl(csv: str):
-    linhas = make_df(csv)
-    for linha in linhas:
-        linha_ok = clean_data(linha)
-        id_responsavel = None
-        cur, conn = connect_db()
-        if linha_ok.get("NOME RESPONSAVEL"):
-            id_responsavel = insert_responsavel(
+    linhas = make_df(csv, 9_000_000, 0)
+    total = len(linhas)
+    with alive_bar(total) as bar:
+        for linha in linhas[:100]:
+            linha_ok = clean_data(linha)
+            id_responsavel = None
+            cur, conn = connect_db()
+            if linha_ok.get("NOME RESPONSAVEL"):
+                id_responsavel = insert_responsavel(
+                    cur,
+                    conn,
+                    {
+                        "responsavel_nome": linha_ok.get("NOME RESPONSAVEL"),
+                        "responsavel_nis": linha_ok.get("NIS REPONSAVEL"),
+                    },
+                )
+            id_cidadao = None
+            id_municipio = get_codigo_municipio(
+                cur, {"codigo_ibge": linha_ok.get("CODIGO MUNICIPIO")}
+            )
+            if linha_ok.get("NOME BENEFICIARIO"):
+                id_cidadao = insert_cidadao(
+                    cur,
+                    conn,
+                    {
+                        "cidadao_nome": linha_ok.get("NOME BENEFICIARIO"),
+                        "cidadao_nis": linha_ok.get("NIS BENEFICIARIO"),
+                        "responsavel_id_responsavel": id_responsavel,
+                    },
+                )
+            dados_beneficio = {
+                "cidadao_id_cidadao": id_cidadao,
+                "municipio_id_municipio": id_municipio,
+                "mes_disponibilizacao": linha_ok.get("MES DISPONIBILIZACAO"),
+                "enquadramento": linha_ok.get("ENQUADRAMENTO"),
+                "parcela": linha_ok.get("PARCELA"),
+                "observacao": linha_ok.get("OBSERVACAO"),
+                "valor_beneficio": linha_ok.get("VALOR BENEFICIO"),
+            }
+            beneficio_ok = insert_beneficio(
                 cur,
                 conn,
-                {
-                    "responsavel_nome": linha_ok.get("NOME RESPONSAVEL"),
-                    "responsavel_nis": linha_ok.get("NIS REPONSAVEL"),
-                },
+                dados_beneficio,
             )
-        id_cidadao = None
-        id_municipio = get_codigo_municipio(
-            cur, {"codigo_ibge": linha_ok.get("CODIGO MUNICIPIO")}
-        )
-        if linha_ok.get("NOME BENEFICIARIO"):
-            id_cidadao = insert_cidadao(
-                cur,
-                conn,
-                {
-                    "cidadao_nome": linha_ok.get("NOME BENEFICIARIO"),
-                    "cidadao_nis": linha_ok.get("NIS BENEFICIARIO"),
-                    "responsavel_id_responsavel": id_responsavel,
-                },
-            )
-        dados_beneficio = {
-            "cidadao_id_cidadao": id_cidadao,
-            "municipio_id_municipio": id_municipio,
-            "mes_disponibilizacao": linha_ok.get("MES DISPONIBILIZACAO"),
-            "enquadramento": linha_ok.get("ENQUADRAMENTO"),
-            "parcela": linha_ok.get("PARCELA"),
-            "observacao": linha_ok.get("OBSERVACAO"),
-            "valor_beneficio": linha_ok.get("VALOR BENEFICIO"),
-        }
-        beneficio_ok = insert_beneficio(
-            cur,
-            conn,
-            dados_beneficio,
-        )
-        if beneficio_ok:
-            logger.info("Inserção realizada com sucesso")
-        else:
-            logger.error(f"Falha na inserção do benefício: {dados_beneficio}")
+            if beneficio_ok:
+                logger.info("Inserção realizada com sucesso")
+            else:
+                logger.error(f"Falha na inserção do benefício: {dados_beneficio}")
 
-    disconnect_db(cur, conn)
+        bar()
+        disconnect_db(cur, conn)
 
 
 if __name__ == "__main__":
-    csv = "/home/rebellion/202009_AuxilioEmergencial.csv"
+    csv = "/home/rebellion/FBD/202009_AuxilioEmergencial.csv"
     insert_etl(csv)

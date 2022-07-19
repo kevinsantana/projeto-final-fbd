@@ -157,6 +157,7 @@ def make_df(csv: str, n_rows: int = 0, skip_rows: int = 0):
 def insert_etl(csv: str):
     linhas = make_df(csv, 9_000_000, 0)
     total = len(linhas)
+
     with alive_bar(total) as bar:
         for linha in linhas[:100]:
             linha_ok = clean_data(linha)
@@ -171,10 +172,14 @@ def insert_etl(csv: str):
                         "responsavel_nis": linha_ok.get("NIS REPONSAVEL"),
                     },
                 )
+            else:
+                logger.log("NOME RESPONSAVEL", "Responsavel vazio ou não existe")
+
             id_cidadao = None
             id_municipio = get_codigo_municipio(
                 cur, {"codigo_ibge": linha_ok.get("CODIGO MUNICIPIO")}
             )
+
             if linha_ok.get("NOME BENEFICIARIO"):
                 id_cidadao = insert_cidadao(
                     cur,
@@ -185,6 +190,9 @@ def insert_etl(csv: str):
                         "responsavel_id_responsavel": id_responsavel,
                     },
                 )
+            else:
+                logger.log("NOME BENEFICIARIO", "Nome do responsável vazio ou não existe")
+
             dados_beneficio = {
                 "cidadao_id_cidadao": id_cidadao,
                 "municipio_id_municipio": id_municipio,
@@ -202,7 +210,7 @@ def insert_etl(csv: str):
             if beneficio_ok:
                 logger.info("Inserção realizada com sucesso")
             else:
-                logger.error(f"Falha na inserção do benefício: {dados_beneficio}")
+                logger.log("BENEFICIARIO", f"Falha na inserção do benefício: {dados_beneficio}")
 
         bar()
         disconnect_db(cur, conn)

@@ -101,7 +101,9 @@ def get_codigo_municipio(cursor, dados_municipio: dict) -> int:
         """,
         dados_municipio,
     )
-    return cursor.fetchone()["id_municipio"]
+    total = cursor.rowcount
+    result = cursor.fetchone()["id_municipio"] if total else None
+    return result
 
 
 def connect_db():
@@ -122,8 +124,25 @@ def disconnect_db(cursor, connection):
 
 
 def make_df(csv: str, n_rows: int = 0, skip_rows: int = 0):
+    columns_names = [
+        "M�S DISPONIBILIZA��O",
+        "UF",
+        "C�DIGO MUNIC�PIO IBGE",
+        "NOME MUNIC�PIO",
+        "NIS BENEFICI�RIO",
+        "CPF BENEFICI�RIO",
+        "NOME BENEFICI�RIO",
+        "NIS RESPONS�VEL",
+        "CPF RESPONS�VEL",
+        "NOME RESPONS�VEL",
+        "ENQUADRAMENTO",
+        "PARCELA",
+        "OBSERVA��O",
+        "VALOR BENEF�CIO"
+    ]
     linhas = pandas.read_csv(
         csv,
+        sep=";",
         encoding="utf_8",
         encoding_errors="replace",
         usecols=[
@@ -135,7 +154,7 @@ def make_df(csv: str, n_rows: int = 0, skip_rows: int = 0):
             "ENQUADRAMENTO",
             "PARCELA",
             "OBSERVA��O",
-            "VALOR BENEF�CIO",
+            "VALOR BENEF�CIO"
         ],
         dtype={
             "C�DIGO MUNIC�PIO IBGE": object,
@@ -146,7 +165,8 @@ def make_df(csv: str, n_rows: int = 0, skip_rows: int = 0):
         },
         skiprows=skip_rows,
         engine="c",
-        sep=";",
+        header=0,
+        names=columns_names,
         low_memory=True,
         nrows=n_rows,
     )
@@ -155,7 +175,7 @@ def make_df(csv: str, n_rows: int = 0, skip_rows: int = 0):
 
 
 def insert_etl(csv: str):
-    linhas = make_df(csv, 18_000_000, 9_000_000)
+    linhas = make_df(csv, 9_000_000, 18_000_000)
     total = len(linhas)
 
     with alive_bar(total) as bar:
@@ -176,9 +196,11 @@ def insert_etl(csv: str):
                 logger.log("NOME RESPONSAVEL", "Responsavel vazio ou não existe")
 
             id_cidadao = None
-            id_municipio = get_codigo_municipio(
-                cur, {"codigo_ibge": linha_ok.get("CODIGO MUNICIPIO")}
-            )
+            dados_municipio = {"codigo_ibge": linha_ok.get("CODIGO MUNICIPIO")}
+            id_municipio = get_codigo_municipio(cur, dados_municipio)
+            if not id_municipio:
+                logger.log("CODIGO MUNICIPIO", f"Erro ao buscar municipio: {dados_municipio}")
+                continue
 
             if linha_ok.get("NOME BENEFICIARIO"):
                 id_cidadao = insert_cidadao(

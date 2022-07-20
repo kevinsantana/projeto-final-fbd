@@ -155,11 +155,11 @@ def make_df(csv: str, n_rows: int = 0, skip_rows: int = 0):
 
 
 def insert_etl(csv: str):
-    linhas = make_df(csv, 9_000_000, 0)
+    linhas = make_df(csv, 18_000_000, 9_000_000)
     total = len(linhas)
 
     with alive_bar(total) as bar:
-        for linha in linhas[:100]:
+        for linha in linhas:
             linha_ok = clean_data(linha)
             id_responsavel = None
             cur, conn = connect_db()
@@ -212,7 +212,7 @@ def insert_etl(csv: str):
             else:
                 logger.log("BENEFICIARIO", f"Falha na inserção do benefício: {dados_beneficio}")
 
-        bar()
+            bar()
         disconnect_db(cur, conn)
 
 

@@ -175,7 +175,7 @@ def make_df(csv: str, n_rows: int = 0, skip_rows: int = 0):
 
 
 def insert_etl(csv: str):
-    linhas = make_df(csv, 9_000_000, 18_000_000)
+    linhas = make_df(csv, 9_000_000, 27_000_000)
     total = len(linhas)
 
     with alive_bar(total) as bar:
